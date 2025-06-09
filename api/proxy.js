@@ -11,7 +11,10 @@ export default async function handler(req, res) {
   }
 
   let target = req.query.url;
-  if (!target) return res.status(400).send('No URL provided');
+  if (!target) {
+    res.status(400).send('No URL provided');
+    return;
+  }
 
   // Manejar URLs relativas
   if (target.startsWith('/')) {
@@ -19,7 +22,7 @@ export default async function handler(req, res) {
     if (referer) {
       try {
         const refererUrl = new URL(referer);
-        const proxyParam = new URL(referer).searchParams.get('url');
+        const proxyParam = refererUrl.searchParams.get('url');
         if (proxyParam) {
           const baseUrl = new URL(proxyParam);
           target = new URL(target, baseUrl.origin).toString();
@@ -34,12 +37,14 @@ export default async function handler(req, res) {
     const response = await fetch(target, {
       method: req.method,
       headers: {
-        'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': req.headers['accept'] || '*/*',
+        'User-Agent':
+          req.headers['user-agent'] ||
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        Accept: req.headers['accept'] || '*/*',
         'Accept-Language': 'en-US,en;q=0.9',
-        'Referer': 'https://www.google.com/',
+        Referer: 'https://www.google.com/',
       },
-      redirect: 'manual'
+      redirect: 'manual',
     });
 
     // Manejar redirecciones
@@ -57,7 +62,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // Copiar cabeceras
+    // Copiar cabeceras, excepto problemáticas
     const headers = {};
     response.headers.forEach((value, key) => {
       const lowerKey = key.toLowerCase();
@@ -66,16 +71,21 @@ export default async function handler(req, res) {
       }
     });
 
-    // Modificar contenido HTML para reescribir URLs
+    // Obtener content-type
     const contentType = response.headers.get('content-type') || '';
+
     if (contentType.includes('text/html')) {
       let html = await response.text();
-      
+
       // Reescribir URLs en el HTML
       html = html.replace(
         /(href|src|action)=["']([^"']*)["']/gi,
         (match, attr, url) => {
-          if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) {
+          if (
+            url.startsWith('http://') ||
+            url.startsWith('https://') ||
+            url.startsWith('//')
+          ) {
             const fullUrl = url.startsWith('//') ? `https:${url}` : url;
             return `${attr}="/api/proxy?url=${encodeURIComponent(fullUrl)}"`;
           } else if (url.startsWith('/')) {
@@ -86,12 +96,16 @@ export default async function handler(req, res) {
           return match;
         }
       );
-      
-      // Reescribir URLs en scripts y estilos
+
+      // Reescribir URLs en CSS url(...)
       html = html.replace(
         /url\(["']?([^"')]*)["']?\)/gi,
         (match, url) => {
-          if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) {
+          if (
+            url.startsWith('http://') ||
+            url.startsWith('https://') ||
+            url.startsWith('//')
+          ) {
             const fullUrl = url.startsWith('//') ? `https:${url}` : url;
             return `url("/api/proxy?url=${encodeURIComponent(fullUrl)}")`;
           } else if (url.startsWith('/')) {
@@ -102,11 +116,22 @@ export default async function handler(req, res) {
           return match;
         }
       );
-      
-      res.set(headers);
-      res.send(html);
+
+      res.setHeader('Content-Type', contentType);
+      for (const [key, value] of Object.entries(headers)) {
+        res.setHeader(key, value);
+      }
+
+      if (typeof res.send === 'function') {
+        res.send(html);
+      } else {
+        res.write(html);
+        res.end();
+      }
     } else {
-      res.set(headers);
+      for (const [key, value] of Object.entries(headers)) {
+        res.setHeader(key, value);
+      }
       response.body.pipe(res);
     }
   } catch (err) {
