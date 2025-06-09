@@ -5,5 +5,8 @@ function navigate() {
     return;
   }
   const encoded = encodeURIComponent(url);
-  document.getElementById('viewer').src = `/api/proxy?url=${encoded}`;
+  const proxyUrl = `/api/proxy?url=${encoded}`;
+
+  // Abrir en nueva pestaña
+  window.open(proxyUrl, '_blank');
 }
