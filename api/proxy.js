@@ -7,13 +7,15 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
-    res.status(200).end();
+    res.statusCode = 200;
+    res.end();
     return;
   }
 
   let target = req.query.url;
   if (!target) {
-    res.status(400).send('No URL provided');
+    res.statusCode = 400;
+    res.end('No URL provided');
     return;
   }
 
@@ -66,10 +68,9 @@ export default async function handler(req, res) {
           : new URL(location, new URL(target).origin).toString();
 
         // Redirigir al proxy con la nueva URL
-        res.writeHead(302, {
-          Location: `/api/proxy?url=${encodeURIComponent(redirectUrl)}`,
-          'Access-Control-Allow-Origin': '*'
-        });
+        res.statusCode = 302;
+        res.setHeader('Location', `/api/proxy?url=${encodeURIComponent(redirectUrl)}`);
+        res.setHeader('Access-Control-Allow-Origin', '*');
         res.end();
         return;
       }
@@ -115,16 +116,23 @@ export default async function handler(req, res) {
         return match;
       });
 
-      res.set(headers);
-      res.status(response.status).send(html);
+      // Set headers
+      for (const [key, value] of Object.entries(headers)) {
+        res.setHeader(key, value);
+      }
+      res.statusCode = response.status;
+      res.end(html);
     } else {
       // Para otros tipos de contenido (imágenes, JS, etc) hacemos pipe
-      res.set(headers);
-      res.status(response.status);
+      for (const [key, value] of Object.entries(headers)) {
+        res.setHeader(key, value);
+      }
+      res.statusCode = response.status;
       response.body.pipe(res);
     }
   } catch (error) {
     console.error('Proxy error:', error);
-    res.status(500).send('Proxy error: ' + error.message);
+    res.statusCode = 500;
+    res.end('Proxy error: ' + error.message);
   }
 }
