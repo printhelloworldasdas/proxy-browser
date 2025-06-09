@@ -1,6 +1,7 @@
 import fetch from 'node-fetch';
 
 export default async function handler(req, res) {
+  // CORS Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -34,108 +35,96 @@ export default async function handler(req, res) {
   }
 
   try {
-    const response = await fetch(target, {
+    // Opciones para fetch
+    const fetchOptions = {
       method: req.method,
       headers: {
-        'User-Agent':
-          req.headers['user-agent'] ||
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        Accept: req.headers['accept'] || '*/*',
+        'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        'Accept': req.headers['accept'] || '*/*',
         'Accept-Language': 'en-US,en;q=0.9',
-        Referer: 'https://www.google.com/',
+        'Referer': 'https://www.google.com/',
       },
       redirect: 'manual',
-    });
+    };
+
+    // Si método con body
+    if (['POST', 'PUT', 'PATCH'].includes(req.method.toUpperCase())) {
+      fetchOptions.body = req.body;
+      if (req.headers['content-type']) {
+        fetchOptions.headers['Content-Type'] = req.headers['content-type'];
+      }
+    }
+
+    const response = await fetch(target, fetchOptions);
 
     // Manejar redirecciones
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get('location');
       if (location) {
-        let redirectUrl;
-        if (location.startsWith('http')) {
-          redirectUrl = location;
-        } else {
-          const baseUrl = new URL(target);
-          redirectUrl = new URL(location, baseUrl.origin).toString();
-        }
-        return res.redirect(`/api/proxy?url=${encodeURIComponent(redirectUrl)}`);
+        let redirectUrl = location.startsWith('http')
+          ? location
+          : new URL(location, new URL(target).origin).toString();
+
+        // Redirigir al proxy con la nueva URL
+        res.writeHead(302, {
+          Location: `/api/proxy?url=${encodeURIComponent(redirectUrl)}`,
+          'Access-Control-Allow-Origin': '*'
+        });
+        res.end();
+        return;
       }
     }
 
-    // Copiar cabeceras, excepto problemáticas
+    // Copiar headers excepto algunos problemáticos
     const headers = {};
     response.headers.forEach((value, key) => {
       const lowerKey = key.toLowerCase();
-      if (!['content-encoding', 'content-length', 'transfer-encoding'].includes(lowerKey)) {
+      if (!['content-encoding', 'content-length', 'transfer-encoding', 'connection'].includes(lowerKey)) {
         headers[key] = value;
       }
     });
 
-    // Obtener content-type
     const contentType = response.headers.get('content-type') || '';
 
     if (contentType.includes('text/html')) {
       let html = await response.text();
 
-      // Reescribir URLs en el HTML
-      html = html.replace(
-        /(href|src|action)=["']([^"']*)["']/gi,
-        (match, attr, url) => {
-          if (
-            url.startsWith('http://') ||
-            url.startsWith('https://') ||
-            url.startsWith('//')
-          ) {
-            const fullUrl = url.startsWith('//') ? `https:${url}` : url;
-            return `${attr}="/api/proxy?url=${encodeURIComponent(fullUrl)}"`;
-          } else if (url.startsWith('/')) {
-            const baseUrl = new URL(target);
-            const fullUrl = new URL(url, baseUrl.origin).toString();
-            return `${attr}="/api/proxy?url=${encodeURIComponent(fullUrl)}"`;
-          }
-          return match;
+      // Reescribir URLs (href, src, action)
+      html = html.replace(/(href|src|action)=["']([^"']*)["']/gi, (match, attr, url) => {
+        if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) {
+          const fullUrl = url.startsWith('//') ? `https:${url}` : url;
+          return `${attr}="/api/proxy?url=${encodeURIComponent(fullUrl)}"`;
+        } else if (url.startsWith('/')) {
+          const baseUrl = new URL(target);
+          const fullUrl = new URL(url, baseUrl.origin).toString();
+          return `${attr}="/api/proxy?url=${encodeURIComponent(fullUrl)}"`;
         }
-      );
+        return match;
+      });
 
-      // Reescribir URLs en CSS url(...)
-      html = html.replace(
-        /url\(["']?([^"')]*)["']?\)/gi,
-        (match, url) => {
-          if (
-            url.startsWith('http://') ||
-            url.startsWith('https://') ||
-            url.startsWith('//')
-          ) {
-            const fullUrl = url.startsWith('//') ? `https:${url}` : url;
-            return `url("/api/proxy?url=${encodeURIComponent(fullUrl)}")`;
-          } else if (url.startsWith('/')) {
-            const baseUrl = new URL(target);
-            const fullUrl = new URL(url, baseUrl.origin).toString();
-            return `url("/api/proxy?url=${encodeURIComponent(fullUrl)}")`;
-          }
-          return match;
+      // Reescribir URLs en CSS url()
+      html = html.replace(/url\(["']?([^"')]+)["']?\)/gi, (match, url) => {
+        if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) {
+          const fullUrl = url.startsWith('//') ? `https:${url}` : url;
+          return `url("/api/proxy?url=${encodeURIComponent(fullUrl)}")`;
+        } else if (url.startsWith('/')) {
+          const baseUrl = new URL(target);
+          const fullUrl = new URL(url, baseUrl.origin).toString();
+          return `url("/api/proxy?url=${encodeURIComponent(fullUrl)}")`;
         }
-      );
+        return match;
+      });
 
-      res.setHeader('Content-Type', contentType);
-      for (const [key, value] of Object.entries(headers)) {
-        res.setHeader(key, value);
-      }
-
-      if (typeof res.send === 'function') {
-        res.send(html);
-      } else {
-        res.write(html);
-        res.end();
-      }
+      res.set(headers);
+      res.status(response.status).send(html);
     } else {
-      for (const [key, value] of Object.entries(headers)) {
-        res.setHeader(key, value);
-      }
+      // Para otros tipos de contenido (imágenes, JS, etc) hacemos pipe
+      res.set(headers);
+      res.status(response.status);
       response.body.pipe(res);
     }
-  } catch (err) {
-    console.error('Proxy error:', err);
-    res.status(500).send('Proxy error: ' + err.message);
+  } catch (error) {
+    console.error('Proxy error:', error);
+    res.status(500).send('Proxy error: ' + error.message);
   }
 }
