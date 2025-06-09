@@ -1,40 +1,60 @@
-import fetch from 'node-fetch';
+function rewriteUrls(html, proxyBaseUrl) {
+  // Igual que antes, pero ahora incluye enlaces y formularios
 
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Cookie');
-
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-
-  const target = req.query.url;
-  if (!target) return res.status(400).send('No URL provided');
-
-  try {
-    const response = await fetch(target, {
-      method: req.method,
-      headers: {
-        'User-Agent': req.headers['user-agent'] || '',
-        'Accept': req.headers['accept'] || '*/*',
-        'Cookie': req.headers['cookie'] || '',
-        'Referer': req.headers['referer'] || '',
-      },
-      redirect: 'follow', // seguir redirecciones
-    });
-
-    // Copiar headers excepto content-encoding para evitar problemas
-    response.headers.forEach((value, key) => {
-      if (key.toLowerCase() !== 'content-encoding') {
-        res.setHeader(key, value);
+  // Reescribir href, src, action (form)
+  html = html.replace(
+    /(href|src|action)=["']([^"']+)["']/gi,
+    (match, attr, url) => {
+      if (
+        url.startsWith('data:') ||
+        url.startsWith('blob:') ||
+        url.startsWith('javascript:') ||
+        url.startsWith('#') ||
+        url.startsWith('mailto:') ||
+        url.startsWith('tel:')
+      ) {
+        return match;
       }
-    });
 
-    res.status(response.status);
-    response.body.pipe(res);
-  } catch (err) {
-    res.status(500).send('Proxy error: ' + err.message);
-  }
+      let absoluteUrl = url;
+      if (url.startsWith('//')) {
+        absoluteUrl = 'https:' + url;
+      } else if (url.startsWith('/')) {
+        absoluteUrl = 'https://www.youtube.com' + url;
+      } else if (!url.startsWith('http')) {
+        absoluteUrl = 'https://www.youtube.com/' + url;
+      }
+
+      const proxied = proxyBaseUrl + encodeURIComponent(absoluteUrl);
+      return `${attr}="${proxied}"`;
+    }
+  );
+
+  // Reescribir url(...) en CSS
+  html = html.replace(
+    /url\(["']?([^"')]+)["']?\)/gi,
+    (match, url) => {
+      if (
+        url.startsWith('data:') ||
+        url.startsWith('blob:') ||
+        url.startsWith('javascript:')
+      ) {
+        return match;
+      }
+
+      let absoluteUrl = url;
+      if (url.startsWith('//')) {
+        absoluteUrl = 'https:' + url;
+      } else if (url.startsWith('/')) {
+        absoluteUrl = 'https://www.youtube.com' + url;
+      } else if (!url.startsWith('http')) {
+        absoluteUrl = 'https://www.youtube.com/' + url;
+      }
+
+      const proxied = proxyBaseUrl + encodeURIComponent(absoluteUrl);
+      return `url("${proxied}")`;
+    }
+  );
+
+  return html;
 }
