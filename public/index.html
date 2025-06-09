@@ -1,19 +1,61 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <title>Mi Navegador Proxy</title>
-  <style>
-    body { font-family: sans-serif; text-align: center; margin-top: 5rem; }
-    input { width: 60%; padding: 10px; font-size: 1rem; }
-    iframe { width: 90%; height: 80vh; border: none; margin-top: 2rem; }
-  </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Proxy Browser</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-  <h1>Navegador Proxy</h1>
-  <input type="text" id="urlInput" placeholder="https://example.com" />
-  <button onclick="navigate()">Ir</button>
-  <iframe id="viewer"></iframe>
+  <div class="browser-container">
+    <!-- Barra de herramientas superior -->
+    <div class="toolbar">
+      <div class="tab-controls">
+        <button id="newTab" title="Nueva pestaña"><i class="fas fa-plus"></i></button>
+        <button id="closeTab" title="Cerrar pestaña"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="navigation-controls">
+        <button id="goBack" title="Atrás"><i class="fas fa-arrow-left"></i></button>
+        <button id="goForward" title="Adelante"><i class="fas fa-arrow-right"></i></button>
+        <button id="refresh" title="Recargar"><i class="fas fa-sync-alt"></i></button>
+      </div>
+      <div class="url-container">
+        <input type="text" id="urlInput" placeholder="Buscar o escribir URL">
+        <button id="goButton"><i class="fas fa-search"></i></button>
+      </div>
+      <div class="user-controls">
+        <button id="bookmarks" title="Marcadores"><i class="fas fa-bookmark"></i></button>
+        <button id="settings" title="Configuración"><i class="fas fa-cog"></i></button>
+      </div>
+    </div>
+
+    <!-- Barra de pestañas -->
+    <div class="tab-bar">
+      <div class="tabs-container" id="tabsContainer"></div>
+    </div>
+
+    <!-- Contenedor de páginas -->
+    <div class="pages-container" id="pagesContainer"></div>
+
+    <!-- Página de nueva pestaña -->
+    <div class="new-tab-page hidden" id="newTabPage">
+      <div class="logo">Proxy Browser</div>
+      <div class="search-box">
+        <input type="text" id="quickSearch" placeholder="Buscar con Google o escribir URL">
+        <button id="quickGo"><i class="fas fa-search"></i></button>
+      </div>
+      <div class="quick-links">
+        <h3>Sitios frecuentes</h3>
+        <div class="links-grid">
+          <a href="#" data-url="https://www.youtube.com"><img src="assets/youtube.png" alt="YouTube">YouTube</a>
+          <a href="#" data-url="https://www.google.com"><img src="assets/google.png" alt="Google">Google</a>
+          <a href="#" data-url="https://www.github.com"><img src="assets/github.png" alt="GitHub">GitHub</a>
+          <a href="#" data-url="https://www.wikipedia.org"><img src="assets/wikipedia.png" alt="Wikipedia">Wikipedia</a>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="script.js"></script>
 </body>
