@@ -1,5 +1,41 @@
 {
+  "version": 2,
+  "functions": {
+    "api/proxy.js": {
+      "maxDuration": 25
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type,Authorization,X-Requested-With,Accept,Origin,User-Agent,Cache-Control,Pragma"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "ALLOWALL"
+        }
+      ]
+    }
+  ],
   "rewrites": [
-    { "source": "/api/proxy", "destination": "/api/proxy.js" }
+    {
+      "source": "/api/proxy",
+      "destination": "/api/proxy.js"
+    },
+    {
+      "source": "/proxy",
+      "destination": "/api/proxy"
+    }
   ]
 }
