@@ -318,7 +318,7 @@ function rewriteJsUrls(js, baseUrl) {
 }
 
 function getInterceptionScript() {
-  return `
+  return
     (function() {
       // Interceptar fetch
       const originalFetch = window.fetch;
@@ -359,5 +359,5 @@ function getInterceptionScript() {
         }
       });
     })();
-  `;
+  ;
 }
